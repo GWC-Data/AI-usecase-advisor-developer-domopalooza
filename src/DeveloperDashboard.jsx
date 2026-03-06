@@ -1,9 +1,145 @@
 import React, { useEffect, useState, useMemo } from "react";
 import Domo from "ryuu.js";
-import { startDeveloperWorkflow } from "./api/developerWorkflow";
+import {
+  startDeveloperWorkflow,
+  waitForWorkflowCompletion,
+} from "./api/developerWorkflow";
 import gwcLogo from "./assert/gwc-logo.png";
 import domoLogo from "./assert/domopalooza-logo.svg";
 import toast, { Toaster } from "react-hot-toast";
+
+// Celebration Blast Component - Copied from your working App
+const CelebrationBlast = () => {
+  const [particles, setParticles] = useState([]);
+
+  useEffect(() => {
+    // Create 200 small particles for dense burst effect
+    const newParticles = Array.from({ length: 200 }, (_, i) => {
+      // Determine if particle comes from bottom left or bottom right corner
+      const side = Math.random() > 0.5 ? "left" : "right";
+
+      // Small size range (3-12px)
+      const size = Math.random() * 9 + 3; // 3-12px
+
+      // Random direction
+      const angle = Math.random() * Math.PI * 2;
+      const distance = Math.random() * 150 + 50; // 50-200px
+
+      // Calculate translation
+      const tx = Math.cos(angle) * distance;
+      const ty = -Math.abs(Math.sin(angle) * distance) - 20; // Always go upward
+
+      return {
+        id: i,
+        side,
+        // Position at bottom corners
+        left: side === "left" ? 0 : "100%",
+        bottom: 0,
+        size: `${size}px`,
+        color: [
+          "#FBBF24",
+          "#F97316",
+          "#1E3A8A",
+          "#3B82F6",
+          "#10B981",
+          "#EC4899",
+          "#8B5CF6",
+          "#EF4444",
+          "#F59E0B",
+          "#6366F1",
+          "#06B6D4",
+          "#84CC16",
+          "#D946EF",
+          "#F43F5E",
+          "#14B8A6",
+          "#A855F7",
+          "#F472B6",
+          "#60A5FA",
+          "#FBBF24",
+          "#F97316",
+          "#1E3A8A",
+          "#3B82F6",
+        ][Math.floor(Math.random() * 22)],
+        animationDuration: `${Math.random() * 1.5 + 0.8}s`, // 0.8-2.3 seconds
+        animationDelay: `${Math.random() * 0.2}s`,
+        rotation: Math.random() * 720,
+        tx: tx,
+        ty: ty,
+        shape: Math.random() > 0.5 ? "circle" : "square",
+        opacity: Math.random() * 0.4 + 0.6,
+      };
+    });
+
+    setParticles(newParticles);
+
+    // Remove particles after animation
+    const timer = setTimeout(() => {
+      setParticles([]);
+    }, 2500);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  return (
+    <div
+      className="absolute inset-0 pointer-events-none overflow-visible"
+      style={{ zIndex: 9999 }}>
+      <style>
+        {`
+          @keyframes blastAnimation {
+            0% {
+              transform: scale(0) rotate(0deg) translate(0, 0);
+              opacity: 1;
+            }
+            20% {
+              transform: scale(1.3) rotate(180deg) translate(var(--tx, 50px), var(--ty, -50px));
+              opacity: 1;
+            }
+            40% {
+              transform: scale(1.1) rotate(270deg) translate(calc(var(--tx, 50px) * 1.5), calc(var(--ty, -50px) * 1.3));
+              opacity: 0.9;
+            }
+            60% {
+              transform: scale(0.9) rotate(360deg) translate(calc(var(--tx, 50px) * 1.8), calc(var(--ty, -50px) * 1.6));
+              opacity: 0.7;
+            }
+            80% {
+              transform: scale(0.6) rotate(450deg) translate(calc(var(--tx, 50px) * 2), calc(var(--ty, -50px) * 1.9));
+              opacity: 0.4;
+            }
+            100% {
+              transform: scale(0) rotate(540deg) translate(calc(var(--tx, 50px) * 2.2), calc(var(--ty, -50px) * 2.2));
+              opacity: 0;
+            }
+          }
+        `}
+      </style>
+      {particles.map((particle) => (
+        <div
+          key={particle.id}
+          className="absolute"
+          style={{
+            left: particle.left,
+            bottom: particle.bottom,
+            width: particle.size,
+            height: particle.size,
+            backgroundColor: particle.color,
+            animation: `blastAnimation ${particle.animationDuration} cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards`,
+            animationDelay: particle.animationDelay,
+            borderRadius: particle.shape === "circle" ? "50%" : "2px",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+            border: "none",
+            opacity: particle.opacity,
+            ["--tx"]: particle.tx + "px",
+            ["--ty"]: particle.ty + "px",
+            willChange: "transform, opacity",
+            transform: "translateZ(0)", // Force hardware acceleration
+          }}
+        />
+      ))}
+    </div>
+  );
+};
 
 function DeveloperDashboard() {
   const [tickets, setTickets] = useState([]);
@@ -18,9 +154,15 @@ function DeveloperDashboard() {
   const [showDetailsPopup, setShowDetailsPopup] = useState(false);
   const [selectedDetailsTicket, setSelectedDetailsTicket] = useState(null);
 
+  // State for success popup - exactly like your App
+  const [showSuccessPopup, setShowSuccessPopup] = useState(false);
+  const [successEmail, setSuccessEmail] = useState("");
+  const [workflowStatus, setWorkflowStatus] = useState(null);
+  const [result, setResult] = useState(null);
+
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
-  const [rowsPerPage] = useState(10);
+  const [rowsPerPage] = useState(5);
 
   useEffect(() => {
     fetchOpenTickets();
@@ -119,6 +261,7 @@ function DeveloperDashboard() {
     if (error) return;
 
     setLoading(true);
+    setWorkflowStatus("IN_PROGRESS");
 
     try {
       // Update ticket status and add solution link
@@ -129,13 +272,13 @@ function DeveloperDashboard() {
             ...selectedTicket.content,
             status: "CLOSED",
             solutionLink: solutionLink,
-            closedAt: new Date().toISOString()
+            closedAt: new Date().toISOString(),
           },
         },
       );
 
       // Start workflow with all required parameters
-      await startDeveloperWorkflow({
+      const workflowResponse = await startDeveloperWorkflow({
         ticketId: selectedTicket.id,
         name: selectedTicket.content.customerName,
         email: selectedTicket.content.email,
@@ -145,22 +288,66 @@ function DeveloperDashboard() {
         solutionLink: solutionLink,
       });
 
-      setSolutionLink("");
-      setLinkError("");
+      const workflowInstanceId = workflowResponse.id;
+
+      // Store the submitted ticket info for success popup
+      const submittedData = {
+        name: selectedTicket.content.customerName,
+        email: selectedTicket.content.email,
+        usecase: selectedTicket.content.usecase,
+      };
+
+      // DON'T close the submit popup yet - keep it open until celebration popup appears
+
+      // Wait for workflow to complete using the EXACT same function as your App
+      await waitForWorkflowCompletion(workflowInstanceId);
+
+      // Workflow completed successfully
+      setWorkflowStatus("COMPLETED");
+
+      // Set result for success popup - exactly like your App
+      setResult({
+        ...submittedData,
+        status: "COMPLETED",
+        message:
+          "Your solution has been submitted and an email has been sent to the customer.",
+      });
+
+      // Set success email
+      setSuccessEmail(selectedTicket.content.email);
+
+      // Now close the submit popup and show celebration popup
       setShowPopup(false);
+      setShowSuccessPopup(true);
 
       // Refresh tickets
       await fetchOpenTickets();
-
-      toast.success(
-        "Solution submitted successfully! Email notification sent.",
-      );
     } catch (error) {
       console.error("Submit error:", error);
+      setWorkflowStatus("FAILED");
       setLinkError("Failed to submit solution. Please try again.");
       toast.error("Failed to submit solution");
+
+      // Keep popup open on error so user can try again
     } finally {
       setLoading(false);
+      // Don't reset workflow status here - keep it as FAILED for error state
+    }
+  };
+
+  const handleCloseSuccessPopup = () => {
+    setShowSuccessPopup(false);
+    setWorkflowStatus(null);
+    setResult(null);
+  };
+
+  const handleCancelPopup = () => {
+    // Only allow cancel if not loading
+    if (!loading) {
+      setShowPopup(false);
+      setSolutionLink("");
+      setLinkError("");
+      setWorkflowStatus(null);
     }
   };
 
@@ -452,8 +639,9 @@ function DeveloperDashboard() {
                       </div>
                     </div>
                     <button
-                      onClick={() => setShowPopup(false)}
-                      className="text-gray-400 hover:text-gray-600 transition-colors w-6 h-6 sm:w-7 sm:h-7 rounded-full hover:bg-gray-100 flex items-center justify-center text-base sm:text-lg">
+                      onClick={handleCancelPopup}
+                      className="text-gray-400 hover:text-gray-600 transition-colors w-6 h-6 sm:w-7 sm:h-7 rounded-full hover:bg-gray-100 flex items-center justify-center text-base sm:text-lg disabled:opacity-30 disabled:cursor-not-allowed"
+                      disabled={loading}>
                       ✕
                     </button>
                   </div>
@@ -505,13 +693,14 @@ function DeveloperDashboard() {
                     placeholder="https://docs.example.com/solution"
                     value={solutionLink}
                     onChange={handleSolutionLinkChange}
+                    disabled={loading}
                     className={`w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg text-xs sm:text-sm transition-all focus:outline-none focus:ring-2 ${
                       linkError
                         ? "border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-200"
                         : solutionLink && !linkError
                           ? "border-green-300 bg-green-50 focus:border-green-400 focus:ring-green-200"
                           : "border-gray-200 focus:border-[#1E3A8A] focus:ring-[#1E3A8A]/20"
-                    }`}
+                    } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
                   />
                   {/* Validation Error Message */}
                   {linkError && (
@@ -536,8 +725,9 @@ function DeveloperDashboard() {
                 {/* Action Buttons */}
                 <div className="flex space-x-2 sm:space-x-3">
                   <button
-                    onClick={() => setShowPopup(false)}
-                    className="flex-1 px-3 sm:px-4 py-2 sm:py-3 border-2 border-gray-200 text-gray-600 hover:bg-gray-50 rounded-lg text-xs sm:text-sm font-medium transition-all">
+                    onClick={handleCancelPopup}
+                    disabled={loading}
+                    className="flex-1 px-3 sm:px-4 py-2 sm:py-3 border-2 border-gray-200 text-gray-600 hover:bg-gray-50 rounded-lg text-xs sm:text-sm font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed">
                     Cancel
                   </button>
                   <button
@@ -564,13 +754,23 @@ function DeveloperDashboard() {
                             d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                           />
                         </svg>
-                        <span>Submitting...</span>
+                        <span>Processing...</span>
                       </>
                     ) : (
                       "Submit Solution"
                     )}
                   </button>
                 </div>
+
+                {/* Status message while workflow is in progress */}
+                {loading && workflowStatus === "IN_PROGRESS" && (
+                  <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-xs text-blue-700 flex items-center">
+                      <span className="mr-2">⏳</span>
+                      Workflow in progress. Please wait...
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -672,39 +872,93 @@ function DeveloperDashboard() {
                       </div>
                     </div>
 
-                    {/* AI Agent Result Section */}
+                    {/* AI Agent Result Section - Enhanced Version */}
                     {selectedDetailsTicket.content.agentResult && (
                       <div className="border-t border-gray-200 pt-3 sm:pt-4">
                         <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 flex items-center">
                           <span className="w-1 h-4 bg-[#FBBF24] rounded-full mr-2"></span>
-                          AI Agent Analysis
+                          AI Agent Analysis Results
                         </h4>
-                        <div className="bg-gradient-to-br from-[#1E3A8A]/5 to-[#0A1E3C]/5 rounded-lg p-4 border border-[#FBBF24]/20">
-                          <div className="flex items-start space-x-3">
-                            <div className="w-6 h-6 bg-[#1E3A8A] rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                              <span className="text-white text-xs">🤖</span>
+
+                        {/* Main Agent Result Card */}
+                        <div className="bg-gradient-to-br from-[#1E3A8A]/5 to-[#0A1E3C]/5 rounded-xl p-4 border-2 border-[#FBBF24]/30 shadow-sm">
+                          {/* Agent Header */}
+                          <div className="flex items-center space-x-3 mb-4 pb-3 border-b border-[#FBBF24]/20">
+                            <div className="w-10 h-10 bg-gradient-to-br from-[#1E3A8A] to-[#0A1E3C] rounded-xl flex items-center justify-center shadow-md">
+                              <span className="text-white text-lg">🤖</span>
                             </div>
-                            <div className="flex-1">
-                              {Array.isArray(
-                                selectedDetailsTicket.content.agentResult,
-                              ) ? (
-                                <ul className="list-disc pl-4 space-y-2">
-                                  {selectedDetailsTicket.content.agentResult.map(
-                                    (step, index) => (
-                                      <li
-                                        key={index}
-                                        className="text-xs sm:text-sm text-gray-700 leading-relaxed break-words">
-                                        {step}
-                                      </li>
-                                    ),
-                                  )}
-                                </ul>
-                              ) : (
-                                <p className="text-xs sm:text-sm text-gray-700 break-words">
+                            <div>
+                              <h5 className="text-sm font-bold text-[#0A1E3C]">
+                                AI Agent Analysis
+                              </h5>
+                            </div>
+                            <div className="ml-auto">
+                              <span className="bg-green-100 text-green-800 text-[10px] font-semibold px-2 py-1 rounded-full border border-green-200">
+                                COMPLETED
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Analysis Content */}
+                          <div className="space-y-4">
+                            {Array.isArray(
+                              selectedDetailsTicket.content.agentResult,
+                            ) ? (
+                              <>
+
+                                {/* Recommendations List */}
+                                <div className="space-y-2">
+                                  <p className="text-xs font-medium text-[#1E3A8A] flex items-center">
+                                    <span className="w-1 h-3 bg-[#FBBF24] rounded-full mr-2"></span>
+                                    Recommended Actions
+                                  </p>
+                                  <ul className="space-y-2">
+                                    {selectedDetailsTicket.content.agentResult.map(
+                                      (step, index) => (
+                                        <li
+                                          key={index}
+                                          className="flex items-start space-x-2 bg-white rounded-lg p-2 border border-gray-100 hover:border-[#FBBF24]/30 transition-colors">
+                                          <span className="flex-shrink-0 w-5 h-5 bg-gradient-to-br from-[#1E3A8A] to-[#0A1E3C] rounded-full text-white text-[10px] flex items-center justify-center font-medium mt-0.5">
+                                            {index + 1}
+                                          </span>
+                                          <span className="text-xs sm:text-sm text-gray-700 leading-relaxed break-words flex-1">
+                                            {step}
+                                          </span>
+                                        </li>
+                                      ),
+                                    )}
+                                  </ul>
+                                </div>
+                              </>
+                            ) : typeof selectedDetailsTicket.content
+                                .agentResult === "object" ? (
+                              /* Object format */
+                              <div className="space-y-3">
+                                {Object.entries(
+                                  selectedDetailsTicket.content.agentResult,
+                                ).map(([key, value]) => (
+                                  <div
+                                    key={key}
+                                    className="bg-white rounded-lg p-3 border border-gray-100">
+                                    <span className="text-xs font-semibold text-[#1E3A8A] capitalize block mb-1">
+                                      {key.replace(/_/g, " ")}:
+                                    </span>
+                                    <span className="text-xs text-gray-700">
+                                      {typeof value === "object"
+                                        ? JSON.stringify(value, null, 2)
+                                        : value}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              /* String format */
+                              <div className="bg-white rounded-lg p-4 border border-gray-100">
+                                <p className="text-xs sm:text-sm text-gray-700 whitespace-pre-wrap break-words leading-relaxed">
                                   {selectedDetailsTicket.content.agentResult}
                                 </p>
-                              )}
-                            </div>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -724,7 +978,86 @@ function DeveloperDashboard() {
             </div>
           </div>
         )}
+
+        {/* Success Celebration Popup - Exactly like your App's pattern */}
+        {showSuccessPopup && result && workflowStatus === "COMPLETED" && (
+          <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl max-w-md w-full mx-auto shadow-2xl transform animate-slideUp border border-gray-100 relative overflow-hidden">
+              {/* Bottom Corner Paper Burst - Only show for completed status */}
+              {result.status === "COMPLETED" && <CelebrationBlast />}
+
+              {/* Modal Header */}
+              <div className="relative">
+                <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-green-400 to-green-600 rounded-t-2xl"></div>
+                <div className="p-6 sm:p-8 text-center">
+                  {/* Large Green Checkmark with Animation - Like your App */}
+                  <div className="mb-6 relative">
+                    <div className="w-20 h-20 sm:w-24 sm:h-24 mx-auto bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center shadow-lg relative overflow-hidden">
+                      <span className="text-white text-4xl sm:text-5xl relative z-10">
+                        ✓
+                      </span>
+                      {/* Ripple effect like your App */}
+                      <div className="absolute inset-0 animate-ping bg-white opacity-30 rounded-full"></div>
+                      <div className="absolute -inset-2 bg-green-300 opacity-20 blur-xl animate-pulse"></div>
+                    </div>
+                  </div>
+
+                  {/* Success Message */}
+                  <h3 className="text-xl sm:text-2xl font-bold text-[#0A1E3C] mb-3">
+                    Email Sent Successfully!
+                  </h3>
+
+                  <p className="text-sm sm:text-base text-gray-600 mb-2">
+                    Your solution has been submitted and an email has been sent
+                    to:
+                  </p>
+
+                  <div className="bg-gradient-to-r from-green-50 to-green-100 rounded-lg p-3 mb-4">
+                    <p className="text-sm sm:text-base font-medium text-green-800 break-all">
+                      {successEmail}
+                    </p>
+                  </div>
+
+                  {/* Status Badge - CLOSED */}
+                  <div className="flex items-center justify-center mb-6">
+                    <div className="bg-green-100 text-green-800 border border-green-200 inline-flex items-center px-4 py-2 rounded-full">
+                      <span className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></span>
+                      <span className="text-sm font-semibold">
+                        STATUS: CLOSED
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Close Button */}
+                  <button
+                    onClick={handleCloseSuccessPopup}
+                    className="w-full px-4 py-2.5 sm:py-3 bg-gradient-to-r from-[#1E3A8A] to-[#0A1E3C] hover:from-[#0A1E3C] hover:to-[#1E3A8A] text-white font-semibold rounded-lg text-xs sm:text-sm transition-all shadow-md hover:shadow-lg">
+                    Great!
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Add animation styles */}
+      <style jsx>{`
+        @keyframes slideUp {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        .animate-slideUp {
+          animation: slideUp 0.3s ease-out;
+        }
+      `}</style>
     </>
   );
 }
