@@ -141,7 +141,7 @@ function DeveloperDashboard() {
         email: selectedTicket.content.email,
         devEmail: "hariharan.pappannan@gwcdata.ai",
         usecase: selectedTicket.content.usecase,
-        agentResult: selectedTicket.content.agentResult,
+        agentResult: selectedTicket.content.agentResult.join("\n"),
         solutionLink: solutionLink,
       });
 
