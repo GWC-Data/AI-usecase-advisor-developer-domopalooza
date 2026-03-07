@@ -1,12 +1,8 @@
 import React, { useEffect, useState, useMemo } from "react";
-import Domo from "ryuu.js";
-import {
-  startDeveloperWorkflow,
-  waitForWorkflowCompletion,
-} from "./api/developerWorkflow";
 import gwcLogo from "./assert/gwc-logo.png";
 import domoLogo from "./assert/domopalooza-logo.svg";
 import toast, { Toaster } from "react-hot-toast";
+import { submitDeveloperSolution, getTickets } from "./api/developerWorkflow";
 
 // Celebration Blast Component - Copied from your working App
 const CelebrationBlast = () => {
@@ -170,13 +166,15 @@ function DeveloperDashboard() {
 
   const fetchOpenTickets = async () => {
     if (refreshing) return;
+
     setRefreshing(true);
+
     try {
-      const res = await Domo.get(
-        "/domo/datastores/v1/collections/support_requests/documents",
-      );
+      const res = await getTickets();
+
       setTickets(res);
-      setCurrentPage(1); // Reset to first page on new data
+      setCurrentPage(1);
+
       toast.success("Tickets refreshed!");
     } catch (error) {
       console.error("Fetch tickets error:", error);
@@ -264,74 +262,42 @@ function DeveloperDashboard() {
     setWorkflowStatus("IN_PROGRESS");
 
     try {
-      // Update ticket status and add solution link
-      await Domo.put(
-        `/domo/datastores/v1/collections/support_requests/documents/${selectedTicket.id}`,
-        {
-          content: {
-            ...selectedTicket.content,
-            status: "CLOSED",
-            solutionLink: solutionLink,
-            closedAt: new Date().toISOString(),
-          },
-        },
-      );
-
-      // Start workflow with all required parameters
-      const workflowResponse = await startDeveloperWorkflow({
+      const res = await submitDeveloperSolution({
         ticketId: selectedTicket.id,
         name: selectedTicket.content.customerName,
         email: selectedTicket.content.email,
-        devEmail: "hariharan.pappannan@gwcdata.ai",
         usecase: selectedTicket.content.usecase,
         agentResult: selectedTicket.content.agentResult.join("\n"),
         solutionLink: solutionLink,
+        existingContent: selectedTicket.content,
       });
 
-      const workflowInstanceId = workflowResponse.id;
+      if (res.status === "COMPLETED") {
+        setWorkflowStatus("COMPLETED");
 
-      // Store the submitted ticket info for success popup
-      const submittedData = {
-        name: selectedTicket.content.customerName,
-        email: selectedTicket.content.email,
-        usecase: selectedTicket.content.usecase,
-      };
+        setResult({
+          name: selectedTicket.content.customerName,
+          email: selectedTicket.content.email,
+          usecase: selectedTicket.content.usecase,
+          status: "COMPLETED",
+          message:
+            "Your solution has been submitted and an email has been sent to the customer.",
+        });
 
-      // DON'T close the submit popup yet - keep it open until celebration popup appears
+        setSuccessEmail(selectedTicket.content.email);
 
-      // Wait for workflow to complete using the EXACT same function as your App
-      await waitForWorkflowCompletion(workflowInstanceId);
+        setShowPopup(false);
+        setShowSuccessPopup(true);
 
-      // Workflow completed successfully
-      setWorkflowStatus("COMPLETED");
+        await fetchOpenTickets();
+      }
+    } catch (err) {
+      console.error(err);
 
-      // Set result for success popup - exactly like your App
-      setResult({
-        ...submittedData,
-        status: "COMPLETED",
-        message:
-          "Your solution has been submitted and an email has been sent to the customer.",
-      });
-
-      // Set success email
-      setSuccessEmail(selectedTicket.content.email);
-
-      // Now close the submit popup and show celebration popup
-      setShowPopup(false);
-      setShowSuccessPopup(true);
-
-      // Refresh tickets
-      await fetchOpenTickets();
-    } catch (error) {
-      console.error("Submit error:", error);
       setWorkflowStatus("FAILED");
       setLinkError("Failed to submit solution. Please try again.");
-      toast.error("Failed to submit solution");
-
-      // Keep popup open on error so user can try again
     } finally {
       setLoading(false);
-      // Don't reset workflow status here - keep it as FAILED for error state
     }
   };
 
@@ -905,7 +871,6 @@ function DeveloperDashboard() {
                               selectedDetailsTicket.content.agentResult,
                             ) ? (
                               <>
-
                                 {/* Recommendations List */}
                                 <div className="space-y-2">
                                   <p className="text-xs font-medium text-[#1E3A8A] flex items-center">
