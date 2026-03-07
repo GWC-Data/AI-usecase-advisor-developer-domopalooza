@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import gwcLogo from "./assert/gwc-logo.png";
 import domoLogo from "./assert/domopalooza-logo.svg";
 import toast, { Toaster } from "react-hot-toast";
@@ -126,8 +126,8 @@ const CelebrationBlast = () => {
             boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
             border: "none",
             opacity: particle.opacity,
-            ["--tx"]: particle.tx + "px",
-            ["--ty"]: particle.ty + "px",
+            "--tx": particle.tx + "px",
+            "--ty": particle.ty + "px",
             willChange: "transform, opacity",
             transform: "translateZ(0)", // Force hardware acceleration
           }}
@@ -160,11 +160,7 @@ function DeveloperDashboard() {
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage] = useState(5);
 
-  useEffect(() => {
-    fetchOpenTickets();
-  }, []);
-
-  const fetchOpenTickets = async () => {
+  const fetchOpenTickets = useCallback(async () => {
     if (refreshing) return;
 
     setRefreshing(true);
@@ -182,7 +178,11 @@ function DeveloperDashboard() {
     } finally {
       setRefreshing(false);
     }
-  };
+  }, [refreshing]);
+
+  useEffect(() => {
+    fetchOpenTickets();
+  }, [fetchOpenTickets]);
 
   const filteredTickets = useMemo(() => {
     let filtered = [...tickets];
