@@ -186,7 +186,7 @@ function DeveloperDashboard() {
 
   useEffect(() => {
     fetchOpenTickets();
-  }, []);
+  }, [fetchOpenTickets]);
 
   const filteredTickets = useMemo(() => {
     let filtered = [...tickets];
