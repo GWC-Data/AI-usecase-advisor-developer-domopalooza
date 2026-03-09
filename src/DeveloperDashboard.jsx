@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import gwcLogo from "./assert/gwc-logo.png";
 import domoLogo from "./assert/domopalooza-logo.svg";
 import toast, { Toaster } from "react-hot-toast";
@@ -126,8 +126,8 @@ const CelebrationBlast = () => {
             boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
             border: "none",
             opacity: particle.opacity,
-            ["--tx"]: particle.tx + "px",
-            ["--ty"]: particle.ty + "px",
+            "--tx": particle.tx + "px",
+            "--ty": particle.ty + "px",
             willChange: "transform, opacity",
             transform: "translateZ(0)", // Force hardware acceleration
           }}
@@ -162,13 +162,12 @@ function DeveloperDashboard() {
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage] = useState(5);
 
-  useEffect(() => {
-    fetchOpenTickets();
-  }, []);
+  const refreshingRef = useRef(false);
 
-  const fetchOpenTickets = async () => {
-    if (refreshing) return;
+  const fetchOpenTickets = useCallback(async () => {
+    if (refreshingRef.current) return;
 
+    refreshingRef.current = true;
     setRefreshing(true);
 
     try {
@@ -182,9 +181,14 @@ function DeveloperDashboard() {
       console.error("Fetch tickets error:", error);
       toast.error("Failed to fetch tickets");
     } finally {
+      refreshingRef.current = false;
       setRefreshing(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchOpenTickets();
+  }, [fetchOpenTickets]);
 
   const filteredTickets = useMemo(() => {
     let filtered = [...tickets];
@@ -359,16 +363,16 @@ function DeveloperDashboard() {
         {/* Header with Logos - Responsive */}
         <div className="bg-white border-b border-[#1E3A8A]/10 sticky top-0 z-50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
-            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+            <div className="flex flex-row justify-between items-center gap-3">
               {/* Left Logo - GWC */}
               <div className="flex items-center space-x-3">
                 <img
                   src={gwcLogo}
                   alt="GWC"
-                  className="h-8 sm:h-10 w-auto object-contain"
+                  className="w-[150px] md:w-[200px] object-contain"
                 />
-                <div className="h-6 sm:h-8 w-px bg-[#1E3A8A]/30"></div>
-                <div>
+                <div className="h-6 sm:h-8 w-px bg-[#1E3A8A]/30 hidden md:block"></div>
+                <div className="hidden md:block">
                   <span className="text-xs sm:text-sm font-semibold text-[#1E3A8A]">
                     DEVELOPER
                   </span>
@@ -383,7 +387,7 @@ function DeveloperDashboard() {
                 <img
                   src={domoLogo}
                   alt="DomoPalooza"
-                  className="h-6 sm:h-8 w-auto object-contain"
+                  className="w-[150px] md:w-[200px] object-contain"
                 />
               </div>
             </div>
@@ -482,8 +486,8 @@ function DeveloperDashboard() {
                 <tbody className="divide-y divide-gray-100">
                   {paginatedTickets.length > 0 ? (
                     paginatedTickets.map((ticket, index) => (
-                      <tr key={ticket.id} className="border-b border-gray-100">
-                        <td className="px-4 sm:px-6 py-3 sm:py-4">
+                      <tr key={ticket.id} className="border-b border-gray-100 hover:bg-[#F8FAFF] transition-colors">
+                        <td className="px-4 sm:px-6 py-3 sm: text-nowrap">
                           <div className="flex items-center space-x-2 sm:space-x-3">
                             <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gradient-to-br from-[#1E3A8A] to-[#0A1E3C] rounded-lg flex items-center justify-center text-white text-xs sm:text-sm font-medium">
                               {ticket.content.customerName
@@ -495,8 +499,8 @@ function DeveloperDashboard() {
                             </span>
                           </div>
                         </td>
-                        <td className="px-4 sm:px-6 py-3 sm:py-4">
-                          <span className="text-xs sm:text-sm text-gray-600 break-all">
+                        <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
+                          <span className="text-xs sm:text-sm text-gray-600">
                             {ticket.content.email}
                           </span>
                         </td>
@@ -512,31 +516,29 @@ function DeveloperDashboard() {
                             </button>
                           </div>
                         </td>
-                        <td className="px-4 sm:px-6 py-3 sm:py-4">
+                        <td className="px-4 sm:px-6 py-3 sm:py-4 text-nowrap">
                           <span
                             className={`inline-flex items-center px-2 sm:px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(ticket.content.status)}`}>
                             <span
-                              className={`w-1.5 h-1.5 rounded-full mr-1.5 ${
-                                ticket.content.status === "OPEN"
-                                  ? "bg-[#FBBF24] animate-pulse"
-                                  : ticket.content.status === "CLOSED"
-                                    ? "bg-green-500"
-                                    : "bg-gray-400"
-                              }`}></span>
+                              className={`w-1.5 h-1.5 rounded-full mr-1.5 ${ticket.content.status === "OPEN"
+                                ? "bg-[#FBBF24] animate-pulse"
+                                : ticket.content.status === "CLOSED"
+                                  ? "bg-green-500"
+                                  : "bg-gray-400"
+                                }`}></span>
                             <span className="text-[10px] sm:text-xs">
                               {ticket.content.status || "OPEN"}
                             </span>
                           </span>
                         </td>
-                        <td className="px-4 sm:px-6 py-3 sm:py-4">
+                        <td className="px-4 sm:px-6 py-3 sm:py-4 text-nowrap">
                           <button
                             onClick={() => openPopup(ticket)}
                             disabled={ticket.content.status === "CLOSED"}
-                            className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs font-medium transition-all ${
-                              ticket.content.status === "CLOSED"
-                                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                                : "bg-gradient-to-r from-[#1E3A8A] to-[#0A1E3C] text-white shadow-md hover:shadow-lg"
-                            }`}>
+                            className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs font-medium transition-all ${ticket.content.status === "CLOSED"
+                              ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                              : "bg-gradient-to-r from-[#1E3A8A] to-[#0A1E3C] text-white shadow-md hover:shadow-lg"
+                              }`}>
                             {ticket.content.status === "CLOSED"
                               ? "Resolved"
                               : "Approve & Solve"}
@@ -611,29 +613,25 @@ function DeveloperDashboard() {
           <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl max-w-md w-full mx-auto shadow-2xl transform animate-slideUp border border-gray-100 flex flex-col max-h-[85vh]">
               {/* Modal Header */}
-              <div className="relative">
-                <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#FBBF24] via-[#F97316] to-[#1E3A8A] rounded-t-2xl"></div>
-                <div className="p-4 sm:p-6 pb-3 sm:pb-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2 sm:space-x-3">
-                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-[#1E3A8A] to-[#0A1E3C] rounded-lg flex items-center justify-center shadow-lg">
-                        <span className="text-white text-base sm:text-lg">
-                          ✓
-                        </span>
-                      </div>
-                      <div>
-                        <h3 className="text-base sm:text-lg font-bold text-[#0A1E3C]">
-                          Submit Solution
-                        </h3>
-                      </div>
+              <div className="h-1.5 bg-gradient-to-r from-[#FBBF24] via-[#F97316] to-[#1E3A8A] rounded-t-2xl"></div>
+              <div className="p-4 sm:p-6 pb-3 sm:pb-4 border-b border-gray-100">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2 sm:space-x-3">
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-[#1E3A8A] to-[#0A1E3C] rounded-lg flex items-center justify-center shadow-lg">
+                      <span className="text-white text-base sm:text-lg">✓</span>
                     </div>
-                    <button
-                      onClick={handleCancelPopup}
-                      className="text-gray-400 hover:text-gray-600 transition-colors w-6 h-6 sm:w-7 sm:h-7 rounded-full hover:bg-gray-100 flex items-center justify-center text-base sm:text-lg disabled:opacity-30 disabled:cursor-not-allowed"
-                      disabled={loading}>
-                      ✕
-                    </button>
+                    <div>
+                      <h3 className="text-base sm:text-lg font-bold text-[#0A1E3C]">
+                        Submit Solution
+                      </h3>
+                    </div>
                   </div>
+                  <button
+                    onClick={handleCancelPopup}
+                    className="text-gray-400 hover:text-gray-600 transition-colors w-7 h-7 rounded-full hover:bg-gray-100 flex items-center justify-center text-base disabled:opacity-30 disabled:cursor-not-allowed"
+                    disabled={loading}>
+                    ✕
+                  </button>
                 </div>
               </div>
 
@@ -683,13 +681,12 @@ function DeveloperDashboard() {
                     value={solutionLink}
                     onChange={handleSolutionLinkChange}
                     disabled={loading}
-                    className={`w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg text-xs sm:text-sm transition-all focus:outline-none focus:ring-2 ${
-                      linkError
-                        ? "border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-200"
-                        : solutionLink && !linkError
-                          ? "border-green-300 bg-green-50 focus:border-green-400 focus:ring-green-200"
-                          : "border-gray-200 focus:border-[#1E3A8A] focus:ring-[#1E3A8A]/20"
-                    } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
+                    className={`w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg text-xs sm:text-sm transition-all focus:outline-none focus:ring-2 ${linkError
+                      ? "border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-200"
+                      : solutionLink && !linkError
+                        ? "border-green-300 bg-green-50 focus:border-green-400 focus:ring-green-200"
+                        : "border-gray-200 focus:border-[#1E3A8A] focus:ring-[#1E3A8A]/20"
+                      } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
                   />
                   {/* Validation Error Message */}
                   {linkError && (
@@ -812,14 +809,12 @@ function DeveloperDashboard() {
             <div className="bg-white rounded-2xl max-w-lg w-full mx-auto shadow-2xl transform animate-slideUp border border-gray-100 my-8">
               {/* Modal Header - Sticky */}
               <div className="sticky top-0 bg-white rounded-t-2xl z-10">
-                <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#FBBF24] via-[#F97316] to-[#1E3A8A] rounded-t-2xl"></div>
+                {/* <div className="h-1.5 bg-gradient-to-r from-[#FBBF24] via-[#F97316] to-[#1E3A8A] rounded-t-2xl"></div> */}
                 <div className="p-4 sm:p-6 pb-3 sm:pb-4 border-b border-gray-100">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2 sm:space-x-3">
                       <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-[#1E3A8A] to-[#0A1E3C] rounded-lg flex items-center justify-center shadow-lg">
-                        <span className="text-white text-base sm:text-lg">
-                          📋
-                        </span>
+                        <span className="text-white text-base sm:text-lg">📋</span>
                       </div>
                       <div>
                         <h3 className="text-base sm:text-lg font-bold text-[#0A1E3C]">
@@ -829,7 +824,7 @@ function DeveloperDashboard() {
                     </div>
                     <button
                       onClick={() => setShowDetailsPopup(false)}
-                      className="text-gray-400 hover:text-gray-600 transition-colors w-6 h-6 sm:w-7 sm:h-7 rounded-full hover:bg-gray-100 flex items-center justify-center text-base sm:text-lg">
+                      className="text-gray-400 hover:text-gray-600 transition-colors w-7 h-7 rounded-full hover:bg-gray-100 flex items-center justify-center text-base">
                       ✕
                     </button>
                   </div>
@@ -886,14 +881,13 @@ function DeveloperDashboard() {
                           <span
                             className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium mt-1 ${getStatusBadge(selectedDetailsTicket.content.status)}`}>
                             <span
-                              className={`w-1.5 h-1.5 rounded-full mr-1.5 ${
-                                selectedDetailsTicket.content.status === "OPEN"
-                                  ? "bg-[#FBBF24] animate-pulse"
-                                  : selectedDetailsTicket.content.status ===
-                                      "CLOSED"
-                                    ? "bg-green-500"
-                                    : "bg-gray-400"
-                              }`}></span>
+                              className={`w-1.5 h-1.5 rounded-full mr-1.5 ${selectedDetailsTicket.content.status === "OPEN"
+                                ? "bg-[#FBBF24] animate-pulse"
+                                : selectedDetailsTicket.content.status ===
+                                  "CLOSED"
+                                  ? "bg-green-500"
+                                  : "bg-gray-400"
+                                }`}></span>
                             <span>
                               {selectedDetailsTicket.content.status || "OPEN"}
                             </span>
@@ -960,7 +954,7 @@ function DeveloperDashboard() {
                                 </div>
                               </>
                             ) : typeof selectedDetailsTicket.content
-                                .agentResult === "object" ? (
+                              .agentResult === "object" ? (
                               /* Object format */
                               <div className="space-y-3">
                                 {Object.entries(
@@ -1016,8 +1010,8 @@ function DeveloperDashboard() {
               {result.status === "COMPLETED" && <CelebrationBlast />}
 
               {/* Modal Header */}
-              <div className="relative">
-                <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-green-400 to-green-600 rounded-t-2xl"></div>
+              <div>
+                <div className="h-1.5 bg-gradient-to-r from-green-400 to-green-600 rounded-t-2xl"></div>
                 <div className="p-6 sm:p-8 text-center">
                   {/* Large Green Checkmark with Animation - Like your App */}
                   <div className="mb-6 relative">
