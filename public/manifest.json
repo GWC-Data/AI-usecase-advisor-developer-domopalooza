@@ -37,6 +37,20 @@
                "aliasedName": "agentResult"
             },
             {
+               "name": "comments",
+               "displayName": "comments",
+               "subString": null,
+               "type": "text",
+               "visible": true,
+               "value": null,
+               "required": true,
+               "isList": false,
+               "children": [],
+               "nullable": false,
+               "entitySubType": null,
+               "aliasedName": "comments"
+            },
+            {
                "name": "devEmail",
                "displayName": "devEmail",
                "subString": null,
@@ -121,7 +135,7 @@
                "aliasedName": "usecase"
             }
          ],
-         "version": "1.0.0"
+         "version": "1.0.1"
       }
    ]
 }

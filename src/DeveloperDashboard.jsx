@@ -141,12 +141,14 @@ function DeveloperDashboard() {
   const [tickets, setTickets] = useState([]);
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [solutionLink, setSolutionLink] = useState("");
+  const [comments, setComments] = useState("");
   const [showPopup, setShowPopup] = useState(false);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [refreshing, setRefreshing] = useState(false);
   const [linkError, setLinkError] = useState("");
+  const [commentsError, setCommentsError] = useState("");
   const [showDetailsPopup, setShowDetailsPopup] = useState(false);
   const [selectedDetailsTicket, setSelectedDetailsTicket] = useState(null);
 
@@ -234,6 +236,19 @@ function DeveloperDashboard() {
     return "";
   };
 
+  const validateComments = (value) => {
+    if (!value.trim()) return "Comments are required";
+    if (value.trim().length < 10)
+      return "Please provide more detail (min 10 characters)";
+    return "";
+  };
+
+  const handleCommentsChange = (e) => {
+    const value = e.target.value;
+    setComments(value);
+    setCommentsError(validateComments(value));
+  };
+
   const handleSolutionLinkChange = (e) => {
     const link = e.target.value;
     setSolutionLink(link);
@@ -244,6 +259,8 @@ function DeveloperDashboard() {
     setSelectedTicket(ticket);
     setSolutionLink("");
     setLinkError("");
+    setComments("");
+    setCommentsError("");
     setShowPopup(true);
   };
 
@@ -256,7 +273,10 @@ function DeveloperDashboard() {
     const error = validateSolutionLink(solutionLink);
     setLinkError(error);
 
-    if (error) return;
+    const cError = validateComments(comments);
+    setCommentsError(cError);
+
+    if (error || cError) return;
 
     setLoading(true);
     setWorkflowStatus("IN_PROGRESS");
@@ -269,6 +289,7 @@ function DeveloperDashboard() {
         usecase: selectedTicket.content.usecase,
         agentResult: selectedTicket.content.agentResult.join("\n"),
         solutionLink: solutionLink,
+        comments: comments,
         existingContent: selectedTicket.content,
       });
 
@@ -313,6 +334,8 @@ function DeveloperDashboard() {
       setShowPopup(false);
       setSolutionLink("");
       setLinkError("");
+      setComments("");
+      setCommentsError("");
       setWorkflowStatus(null);
     }
   };
@@ -586,7 +609,7 @@ function DeveloperDashboard() {
         {/* Solution Popup Modal */}
         {showPopup && selectedTicket && (
           <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl max-w-md w-full mx-auto shadow-2xl transform animate-slideUp border border-gray-100">
+            <div className="bg-white rounded-2xl max-w-md w-full mx-auto shadow-2xl transform animate-slideUp border border-gray-100 flex flex-col max-h-[85vh]">
               {/* Modal Header */}
               <div className="relative">
                 <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#FBBF24] via-[#F97316] to-[#1E3A8A] rounded-t-2xl"></div>
@@ -615,7 +638,7 @@ function DeveloperDashboard() {
               </div>
 
               {/* Modal Content */}
-              <div className="px-4 sm:px-6 pb-4 sm:pb-6">
+              <div className="px-4 sm:px-6 pb-4 sm:pb-6 overflow-y-auto flex-1">
                 {/* Ticket Summary */}
                 <div className="bg-gradient-to-br from-gray-50 to-white rounded-xl p-3 sm:p-4 mb-3 sm:mb-4 border border-gray-200">
                   <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
@@ -688,44 +711,85 @@ function DeveloperDashboard() {
                   </p>
                 </div>
 
-                {/* Action Buttons */}
-                <div className="flex space-x-2 sm:space-x-3">
-                  <button
-                    onClick={handleCancelPopup}
+                {/* Comments Field */}
+                <div className="mb-4 sm:mb-5">
+                  <label className="block text-xs sm:text-sm font-medium text-[#0A1E3C] mb-1.5 sm:mb-2">
+                    Comments <span className="text-[#FBBF24]">*</span>
+                  </label>
+                  <textarea
+                    placeholder="Add any additional notes or context for the customer..."
+                    value={comments}
+                    onChange={handleCommentsChange}
                     disabled={loading}
-                    className="flex-1 px-3 sm:px-4 py-2 sm:py-3 border-2 border-gray-200 text-gray-600 hover:bg-gray-50 rounded-lg text-xs sm:text-sm font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed">
-                    Cancel
-                  </button>
-                  <button
-                    onClick={submitSolution}
-                    disabled={loading || !!linkError}
-                    className="flex-1 bg-gradient-to-r from-[#1E3A8A] to-[#0A1E3C] hover:from-[#0A1E3C] hover:to-[#1E3A8A] text-white font-semibold py-2 sm:py-3 px-3 sm:px-4 rounded-lg text-xs sm:text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg flex items-center justify-center">
-                    {loading ? (
-                      <>
-                        <svg
-                          className="animate-spin h-3 w-3 sm:h-4 sm:w-4 text-white mr-1 sm:mr-2"
-                          viewBox="0 0 24 24">
-                          <circle
-                            className="opacity-25"
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                            fill="none"
-                          />
-                          <path
-                            className="opacity-75"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                          />
-                        </svg>
-                        <span>Processing...</span>
-                      </>
-                    ) : (
-                      "Submit Solution"
-                    )}
-                  </button>
+                    rows={3}
+                    className={`w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg text-xs sm:text-sm transition-all focus:outline-none focus:ring-2 resize-none ${
+                      commentsError
+                        ? "border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-200"
+                        : comments && !commentsError
+                          ? "border-green-300 bg-green-50 focus:border-green-400 focus:ring-green-200"
+                          : "border-gray-200 focus:border-[#1E3A8A] focus:ring-[#1E3A8A]/20"
+                    } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
+                  />
+                  {/* Error Message */}
+                  {commentsError && (
+                    <div className="flex items-center mt-1.5 sm:mt-2 text-xs text-red-600">
+                      <span className="mr-1">⚠️</span>
+                      <span>{commentsError}</span>
+                    </div>
+                  )}
+                  {/* Success Message */}
+                  {comments && !commentsError && (
+                    <div className="flex items-center mt-1.5 sm:mt-2 text-xs text-green-600">
+                    </div>
+                  )}
+                  <p className="text-xs text-gray-400 mt-1.5 sm:mt-2">
+                    Any extra context or notes to include in the email to the
+                    customer.
+                  </p>
+                </div>
+
+                {/* Action Buttons */}
+                <div>
+                  <div className="px-4 sm:px-6 pb-4 sm:pb-6 border-t border-gray-100 pt-3 bg-white rounded-b-2xl">
+                    <div className="flex space-x-2 sm:space-x-3">
+                      <button
+                        onClick={handleCancelPopup}
+                        disabled={loading}
+                        className="flex-1 px-3 sm:px-4 py-2 sm:py-3 border-2 border-gray-200 text-gray-600 hover:bg-gray-50 rounded-lg text-xs sm:text-sm font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed">
+                        Cancel
+                      </button>
+                      <button
+                        onClick={submitSolution}
+                        disabled={loading || !!linkError || commentsError}
+                        className="flex-1 bg-gradient-to-r from-[#1E3A8A] to-[#0A1E3C] hover:from-[#0A1E3C] hover:to-[#1E3A8A] text-white font-semibold py-2 sm:py-3 px-3 sm:px-4 rounded-lg text-xs sm:text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg flex items-center justify-center">
+                        {loading ? (
+                          <>
+                            <svg
+                              className="animate-spin h-3 w-3 sm:h-4 sm:w-4 text-white mr-1 sm:mr-2"
+                              viewBox="0 0 24 24">
+                              <circle
+                                className="opacity-25"
+                                cx="12"
+                                cy="12"
+                                r="10"
+                                stroke="currentColor"
+                                strokeWidth="4"
+                                fill="none"
+                              />
+                              <path
+                                className="opacity-75"
+                                fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                              />
+                            </svg>
+                            <span>Processing...</span>
+                          </>
+                        ) : (
+                          "Submit Solution"
+                        )}
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Status message while workflow is in progress */}
