@@ -183,7 +183,9 @@ function DeveloperDashboard() {
   const [newDevEmail, setNewDevEmail] = useState("");
   const [newDevEmailError, setNewDevEmailError] = useState("");
   const [addingDev, setAddingDev] = useState(false);
-const [selectedDevEmails, setSelectedDevEmails] = useState([]);
+  const [selectedDevEmails, setSelectedDevEmails] = useState([]);
+  const [solutionImageUrl, setSolutionImageUrl] = useState("");
+  const [imageUrlError, setImageUrlError] = useState("");
 
   const refreshingRef = useRef(false);
 
@@ -249,10 +251,9 @@ const [selectedDevEmails, setSelectedDevEmails] = useState([]);
   const totalPages = Math.ceil(filteredTickets.length / rowsPerPage);
 
   const validateSolutionLink = (link) => {
-    if (!link.trim()) {
-      return "Solution link is required";
+    if (!link || link.trim() === "") {
+      return "";
     }
-
     // Basic URL validation
     const urlPattern =
       /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/i;
@@ -261,6 +262,20 @@ const [selectedDevEmails, setSelectedDevEmails] = useState([]);
     }
 
     return "";
+  };
+
+  const validateImageUrl = (url) => {
+    if (!url.trim()) return "";
+    const urlPattern =
+      /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/i;
+    if (!urlPattern.test(url)) return "Please enter a valid image URL";
+    return "";
+  };
+
+  const handleImageUrlChange = (e) => {
+    const val = e.target.value;
+    setSolutionImageUrl(val);
+    setImageUrlError(validateImageUrl(val));
   };
 
   const validateComments = (value) => {
@@ -289,6 +304,8 @@ const [selectedDevEmails, setSelectedDevEmails] = useState([]);
     setComments("");
     setCommentsError("");
     setShowPopup(true);
+    setSolutionImageUrl("");
+    setImageUrlError("");
   };
 
   const openDetailsPopup = (ticket) => {
@@ -414,13 +431,10 @@ const [selectedDevEmails, setSelectedDevEmails] = useState([]);
   };
 
   const submitSolution = async () => {
-    const error = validateSolutionLink(solutionLink);
-    setLinkError(error);
-
     const cError = validateComments(comments);
     setCommentsError(cError);
 
-    if (error || cError) return;
+    if (cError) return;
 
     setLoading(true);
     setWorkflowStatus("IN_PROGRESS");
@@ -433,6 +447,7 @@ const [selectedDevEmails, setSelectedDevEmails] = useState([]);
         usecase: selectedTicket.content.usecase,
         agentResult: selectedTicket.content.agentResult.join("\n"),
         solutionLink: solutionLink,
+        solutionImageUrl: solutionImageUrl,
         comments: comments,
         existingContent: selectedTicket.content,
       });
@@ -481,6 +496,8 @@ const [selectedDevEmails, setSelectedDevEmails] = useState([]);
       setComments("");
       setCommentsError("");
       setWorkflowStatus(null);
+      setSolutionImageUrl("");
+      setImageUrlError("");
     }
   };
 
@@ -768,9 +785,8 @@ const [selectedDevEmails, setSelectedDevEmails] = useState([]);
         {/* Solution Popup Modal */}
         {showPopup && selectedTicket && (
           <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl max-w-md w-full mx-auto shadow-2xl transform animate-slideUp border border-gray-100 flex flex-col max-h-[85vh]">
+            <div className="bg-white rounded-2xl max-w-md sm:max-w-lg md:max-w-3xl w-full mx-auto shadow-2xl transform animate-slideUp border border-gray-100 flex flex-col max-h-[85vh]">
               {/* Modal Header */}
-              <div className="h-1.5 bg-gradient-to-r from-[#FBBF24] via-[#F97316] to-[#1E3A8A] rounded-t-2xl"></div>
               <div className="p-4 sm:p-6 pb-3 sm:pb-4 border-b border-gray-100">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2 sm:space-x-3">
@@ -830,7 +846,10 @@ const [selectedDevEmails, setSelectedDevEmails] = useState([]);
                 {/* Solution Link Input with Validation */}
                 <div className="mb-4 sm:mb-5">
                   <label className="block text-xs sm:text-sm font-medium text-[#0A1E3C] mb-1.5 sm:mb-2">
-                    Solution Link <span className="text-[#FBBF24]">*</span>
+                    Solution Link{" "}
+                    <span className="text-gray-400 font-normal text-[10px]">
+                      (optional)
+                    </span>
                   </label>
                   <input
                     type="url"
@@ -863,6 +882,46 @@ const [selectedDevEmails, setSelectedDevEmails] = useState([]);
                   <p className="text-xs text-gray-400 mt-1.5 sm:mt-2">
                     Paste a link to documentation, code repository, or solution
                     guide
+                  </p>
+                </div>
+
+                {/* Solution Image URL Field */}
+                <div className="mb-4 sm:mb-5">
+                  <label className="block text-xs sm:text-sm font-medium text-[#0A1E3C] mb-1.5 sm:mb-2">
+                    Solution Image URL{" "}
+                    <span className="text-gray-400 font-normal text-[10px]">
+                      (optional)
+                    </span>
+                  </label>
+                  <input
+                    type="url"
+                    placeholder="https://example.com/screenshot.png"
+                    value={solutionImageUrl}
+                    onChange={handleImageUrlChange}
+                    disabled={loading}
+                    className={`w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg text-xs sm:text-sm transition-all focus:outline-none focus:ring-2 ${
+                      imageUrlError
+                        ? "border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-200"
+                        : solutionImageUrl && !imageUrlError
+                          ? "border-green-300 bg-green-50 focus:border-green-400 focus:ring-green-200"
+                          : "border-gray-200 focus:border-[#1E3A8A] focus:ring-[#1E3A8A]/20"
+                    } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
+                  />
+                  {imageUrlError && (
+                    <div className="flex items-center mt-1.5 text-xs text-red-600">
+                      <span className="mr-1">⚠️</span>
+                      <span>{imageUrlError}</span>
+                    </div>
+                  )}
+                  {solutionImageUrl && !imageUrlError && (
+                    <div className="flex items-center mt-1.5 text-xs text-green-600">
+                      <span className="mr-1">✓</span>
+                      <span>Valid image URL</span>
+                    </div>
+                  )}
+                  <p className="text-xs text-gray-400 mt-1.5">
+                    Paste a public image URL to include a screenshot in the
+                    resolution email.
                   </p>
                 </div>
 
@@ -914,7 +973,7 @@ const [selectedDevEmails, setSelectedDevEmails] = useState([]);
                       </button>
                       <button
                         onClick={submitSolution}
-                        disabled={loading || !!linkError || commentsError}
+                        disabled={loading || !!linkError || !!imageUrlError || commentsError}
                         className="flex-1 bg-gradient-to-r from-[#1E3A8A] to-[#0A1E3C] hover:from-[#0A1E3C] hover:to-[#1E3A8A] text-white font-semibold py-2 sm:py-3 px-3 sm:px-4 rounded-lg text-xs sm:text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg flex items-center justify-center">
                         {loading ? (
                           <>
@@ -963,7 +1022,7 @@ const [selectedDevEmails, setSelectedDevEmails] = useState([]);
         {/* Read More Details Popup */}
         {showDetailsPopup && selectedDetailsTicket && (
           <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
-            <div className="bg-white rounded-2xl max-w-lg w-full mx-auto shadow-2xl transform animate-slideUp border border-gray-100 my-8">
+            <div className="bg-white rounded-2xl max-w-md sm:max-w-lg md:max-w-3xl w-full mx-auto shadow-2xl transform animate-slideUp border border-gray-100 flex flex-col max-h-[85vh]">
               {/* Modal Header - Sticky */}
               <div className="sticky top-0 bg-white rounded-t-2xl z-10">
                 {/* <div className="h-1.5 bg-gradient-to-r from-[#FBBF24] via-[#F97316] to-[#1E3A8A] rounded-t-2xl"></div> */}
@@ -1228,7 +1287,7 @@ const [selectedDevEmails, setSelectedDevEmails] = useState([]);
           <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl max-w-md w-full mx-auto shadow-2xl border border-gray-100 flex flex-col max-h-[85vh]">
               {/* Header */}
-              <div className="h-1.5 bg-gradient-to-r from-[#FBBF24] via-[#F97316] to-[#1E3A8A] rounded-t-2xl"></div>
+              {/* <div className="h-1.5 bg-gradient-to-r from-[#FBBF24] via-[#F97316] to-[#1E3A8A] rounded-t-2xl"></div> */}
               <div className="p-4 sm:p-5 border-b border-gray-100 flex items-center justify-between">
                 <div className="flex items-center space-x-3">
                   <div className="w-9 h-9 bg-gradient-to-br from-[#1E3A8A] to-[#0A1E3C] rounded-lg flex items-center justify-center shadow">
