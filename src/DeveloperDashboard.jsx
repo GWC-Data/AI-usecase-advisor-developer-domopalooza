@@ -1,8 +1,21 @@
-import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
+import React, {
+  useEffect,
+  useState,
+  useMemo,
+  useCallback,
+  useRef,
+} from "react";
 import gwcLogo from "./assert/gwc-logo.png";
 import domoLogo from "./assert/domopalooza-logo.svg";
 import toast, { Toaster } from "react-hot-toast";
-import { submitDeveloperSolution, getTickets } from "./api/developerWorkflow";
+import {
+  submitDeveloperSolution,
+  getTickets,
+  getDevelopers,
+  addDeveloper,
+  deleteDeveloper,
+  toggleDeveloperSelected,
+} from "./api/developerWorkflow";
 
 // Celebration Blast Component - Copied from your working App
 const CelebrationBlast = () => {
@@ -162,6 +175,16 @@ function DeveloperDashboard() {
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage] = useState(5);
 
+  // Developer email state
+  const [showDevEmailPopup, setShowDevEmailPopup] = useState(false);
+  const [developers, setDevelopers] = useState([]);
+  const [devLoading, setDevLoading] = useState(false);
+  const [showAddDevForm, setShowAddDevForm] = useState(false);
+  const [newDevEmail, setNewDevEmail] = useState("");
+  const [newDevEmailError, setNewDevEmailError] = useState("");
+  const [addingDev, setAddingDev] = useState(false);
+const [selectedDevEmails, setSelectedDevEmails] = useState([]);
+
   const refreshingRef = useRef(false);
 
   const fetchOpenTickets = useCallback(async () => {
@@ -271,6 +294,123 @@ function DeveloperDashboard() {
   const openDetailsPopup = (ticket) => {
     setSelectedDetailsTicket(ticket);
     setShowDetailsPopup(true);
+  };
+
+  const fetchDevelopers = async () => {
+    setDevLoading(true);
+    try {
+      const res = await getDevelopers();
+      setDevelopers(res);
+      // Restore selected state from AppDB
+      const alreadySelected = res
+        .filter((d) => d.content?.isSelected === true)
+        .map((d) => d.content.email);
+      setSelectedDevEmails(alreadySelected);
+    } catch (err) {
+      toast.error("Failed to load developers");
+    } finally {
+      setDevLoading(false);
+    }
+  };
+
+  const handleOpenDevEmailPopup = () => {
+    fetchDevelopers();
+    setShowDevEmailPopup(true);
+    setShowAddDevForm(false);
+    setNewDevEmail("");
+    setNewDevEmailError("");
+  };
+
+  const toggleDevEmail = async (dev) => {
+    const newSelected = !dev.content.isSelected;
+
+    // Optimistic UI update
+    setDevelopers((prev) =>
+      prev.map((d) =>
+        d.id === dev.id
+          ? { ...d, content: { ...d.content, isSelected: newSelected } }
+          : d,
+      ),
+    );
+    setSelectedDevEmails((prev) =>
+      newSelected
+        ? [...prev, dev.content.email]
+        : prev.filter((e) => e !== dev.content.email),
+    );
+
+    try {
+      await toggleDeveloperSelected(dev.id, {
+        email: dev.content.email,
+        isSelected: newSelected,
+      });
+    } catch {
+      toast.error("Failed to update selection");
+      // Revert on failure
+      fetchDevelopers();
+    }
+  };
+
+  const handleClearAll = async () => {
+    // Optimistic update
+    setSelectedDevEmails([]);
+    setDevelopers((prev) =>
+      prev.map((d) => ({ ...d, content: { ...d.content, isSelected: false } })),
+    );
+
+    // Persist each deselection
+    try {
+      await Promise.all(
+        developers
+          .filter((d) => d.content?.isSelected)
+          .map((d) =>
+            toggleDeveloperSelected(d.id, {
+              email: d.content.email,
+              isSelected: false,
+            }),
+          ),
+      );
+    } catch {
+      toast.error("Failed to clear selection");
+      fetchDevelopers();
+    }
+  };
+
+  const handleAddDeveloper = async () => {
+    if (!newDevEmail.trim()) {
+      setNewDevEmailError("Email is required");
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newDevEmail)) {
+      setNewDevEmailError("Enter a valid email");
+      return;
+    }
+    setNewDevEmailError("");
+
+    setAddingDev(true);
+    try {
+      await addDeveloper({
+        email: newDevEmail.trim(),
+      });
+      toast.success("Developer added!");
+      setNewDevEmail("");
+      setShowAddDevForm(false);
+      fetchDevelopers();
+    } catch {
+      toast.error("Failed to add developer");
+    } finally {
+      setAddingDev(false);
+    }
+  };
+
+  const handleDeleteDeveloper = async (id, email) => {
+    try {
+      await deleteDeveloper(id);
+      setDevelopers((prev) => prev.filter((d) => d.id !== id));
+      setSelectedDevEmails((prev) => prev.filter((e) => e !== email));
+      toast.success("Developer removed");
+    } catch {
+      toast.error("Failed to remove developer");
+    }
   };
 
   const submitSolution = async () => {
@@ -446,6 +586,19 @@ function DeveloperDashboard() {
                 </select>
               </div>
 
+              {/* Developer Email Button */}
+              <button
+                onClick={handleOpenDevEmailPopup}
+                className="px-3 sm:px-4 py-2 sm:py-2.5 bg-[#1E3A8A] hover:bg-[#0A1E3C] text-white rounded-lg text-xs sm:text-sm font-medium transition-colors flex items-center justify-center space-x-2 relative">
+                <span>👨‍💻</span>
+                <span>Dev Email</span>
+                {selectedDevEmails.length > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-[#FBBF24] text-[#0A1E3C] rounded-full text-[10px] font-bold flex items-center justify-center">
+                    {selectedDevEmails.length}
+                  </span>
+                )}
+              </button>
+
               {/* Refresh Button */}
               <button
                 onClick={fetchOpenTickets}
@@ -486,7 +639,9 @@ function DeveloperDashboard() {
                 <tbody className="divide-y divide-gray-100">
                   {paginatedTickets.length > 0 ? (
                     paginatedTickets.map((ticket, index) => (
-                      <tr key={ticket.id} className="border-b border-gray-100 hover:bg-[#F8FAFF] transition-colors">
+                      <tr
+                        key={ticket.id}
+                        className="border-b border-gray-100 hover:bg-[#F8FAFF] transition-colors">
                         <td className="px-4 sm:px-6 py-3 sm: text-nowrap">
                           <div className="flex items-center space-x-2 sm:space-x-3">
                             <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gradient-to-br from-[#1E3A8A] to-[#0A1E3C] rounded-lg flex items-center justify-center text-white text-xs sm:text-sm font-medium">
@@ -520,12 +675,13 @@ function DeveloperDashboard() {
                           <span
                             className={`inline-flex items-center px-2 sm:px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(ticket.content.status)}`}>
                             <span
-                              className={`w-1.5 h-1.5 rounded-full mr-1.5 ${ticket.content.status === "OPEN"
-                                ? "bg-[#FBBF24] animate-pulse"
-                                : ticket.content.status === "CLOSED"
-                                  ? "bg-green-500"
-                                  : "bg-gray-400"
-                                }`}></span>
+                              className={`w-1.5 h-1.5 rounded-full mr-1.5 ${
+                                ticket.content.status === "OPEN"
+                                  ? "bg-[#FBBF24] animate-pulse"
+                                  : ticket.content.status === "CLOSED"
+                                    ? "bg-green-500"
+                                    : "bg-gray-400"
+                              }`}></span>
                             <span className="text-[10px] sm:text-xs">
                               {ticket.content.status || "OPEN"}
                             </span>
@@ -535,10 +691,11 @@ function DeveloperDashboard() {
                           <button
                             onClick={() => openPopup(ticket)}
                             disabled={ticket.content.status === "CLOSED"}
-                            className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs font-medium transition-all ${ticket.content.status === "CLOSED"
-                              ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                              : "bg-gradient-to-r from-[#1E3A8A] to-[#0A1E3C] text-white shadow-md hover:shadow-lg"
-                              }`}>
+                            className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs font-medium transition-all ${
+                              ticket.content.status === "CLOSED"
+                                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                                : "bg-gradient-to-r from-[#1E3A8A] to-[#0A1E3C] text-white shadow-md hover:shadow-lg"
+                            }`}>
                             {ticket.content.status === "CLOSED"
                               ? "Resolved"
                               : "Approve & Solve"}
@@ -681,12 +838,13 @@ function DeveloperDashboard() {
                     value={solutionLink}
                     onChange={handleSolutionLinkChange}
                     disabled={loading}
-                    className={`w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg text-xs sm:text-sm transition-all focus:outline-none focus:ring-2 ${linkError
-                      ? "border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-200"
-                      : solutionLink && !linkError
-                        ? "border-green-300 bg-green-50 focus:border-green-400 focus:ring-green-200"
-                        : "border-gray-200 focus:border-[#1E3A8A] focus:ring-[#1E3A8A]/20"
-                      } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
+                    className={`w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg text-xs sm:text-sm transition-all focus:outline-none focus:ring-2 ${
+                      linkError
+                        ? "border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-200"
+                        : solutionLink && !linkError
+                          ? "border-green-300 bg-green-50 focus:border-green-400 focus:ring-green-200"
+                          : "border-gray-200 focus:border-[#1E3A8A] focus:ring-[#1E3A8A]/20"
+                    } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
                   />
                   {/* Validation Error Message */}
                   {linkError && (
@@ -736,8 +894,7 @@ function DeveloperDashboard() {
                   )}
                   {/* Success Message */}
                   {comments && !commentsError && (
-                    <div className="flex items-center mt-1.5 sm:mt-2 text-xs text-green-600">
-                    </div>
+                    <div className="flex items-center mt-1.5 sm:mt-2 text-xs text-green-600"></div>
                   )}
                   <p className="text-xs text-gray-400 mt-1.5 sm:mt-2">
                     Any extra context or notes to include in the email to the
@@ -814,7 +971,9 @@ function DeveloperDashboard() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2 sm:space-x-3">
                       <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-[#1E3A8A] to-[#0A1E3C] rounded-lg flex items-center justify-center shadow-lg">
-                        <span className="text-white text-base sm:text-lg">📋</span>
+                        <span className="text-white text-base sm:text-lg">
+                          📋
+                        </span>
                       </div>
                       <div>
                         <h3 className="text-base sm:text-lg font-bold text-[#0A1E3C]">
@@ -881,13 +1040,14 @@ function DeveloperDashboard() {
                           <span
                             className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium mt-1 ${getStatusBadge(selectedDetailsTicket.content.status)}`}>
                             <span
-                              className={`w-1.5 h-1.5 rounded-full mr-1.5 ${selectedDetailsTicket.content.status === "OPEN"
-                                ? "bg-[#FBBF24] animate-pulse"
-                                : selectedDetailsTicket.content.status ===
-                                  "CLOSED"
-                                  ? "bg-green-500"
-                                  : "bg-gray-400"
-                                }`}></span>
+                              className={`w-1.5 h-1.5 rounded-full mr-1.5 ${
+                                selectedDetailsTicket.content.status === "OPEN"
+                                  ? "bg-[#FBBF24] animate-pulse"
+                                  : selectedDetailsTicket.content.status ===
+                                      "CLOSED"
+                                    ? "bg-green-500"
+                                    : "bg-gray-400"
+                              }`}></span>
                             <span>
                               {selectedDetailsTicket.content.status || "OPEN"}
                             </span>
@@ -954,7 +1114,7 @@ function DeveloperDashboard() {
                                 </div>
                               </>
                             ) : typeof selectedDetailsTicket.content
-                              .agentResult === "object" ? (
+                                .agentResult === "object" ? (
                               /* Object format */
                               <div className="space-y-3">
                                 {Object.entries(
@@ -1058,6 +1218,214 @@ function DeveloperDashboard() {
                     Great!
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Developer Email Popup */}
+        {showDevEmailPopup && (
+          <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl max-w-md w-full mx-auto shadow-2xl border border-gray-100 flex flex-col max-h-[85vh]">
+              {/* Header */}
+              <div className="h-1.5 bg-gradient-to-r from-[#FBBF24] via-[#F97316] to-[#1E3A8A] rounded-t-2xl"></div>
+              <div className="p-4 sm:p-5 border-b border-gray-100 flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-9 h-9 bg-gradient-to-br from-[#1E3A8A] to-[#0A1E3C] rounded-lg flex items-center justify-center shadow">
+                    <span className="text-white text-base">👨‍💻</span>
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-[#0A1E3C]">
+                      Developer Emails
+                    </h3>
+                    <p className="text-[10px] text-gray-400">
+                      Select who gets CC'd on resolution emails
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowDevEmailPopup(false)}
+                  className="text-gray-400 hover:text-gray-600 w-7 h-7 rounded-full hover:bg-gray-100 flex items-center justify-center">
+                  ✕
+                </button>
+              </div>
+
+              {/* Selected count badge */}
+              {selectedDevEmails.length > 0 && (
+                <div className="mx-4 mt-3 px-3 py-2 bg-[#1E3A8A]/5 border border-[#1E3A8A]/20 rounded-lg flex items-center justify-between">
+                  <span className="text-xs text-[#1E3A8A] font-medium">
+                    ✓ {selectedDevEmails.length} developer
+                    {selectedDevEmails.length > 1 ? "s" : ""} selected for CC
+                  </span>
+                  <button
+                    onClick={handleClearAll}
+                    className="text-[10px] text-red-500 hover:text-red-700 font-medium">
+                    Clear all
+                  </button>
+                </div>
+              )}
+
+              {/* Scrollable developer list */}
+              <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+                {devLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <svg
+                      className="animate-spin h-6 w-6 text-[#1E3A8A]"
+                      viewBox="0 0 24 24">
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                        fill="none"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                      />
+                    </svg>
+                  </div>
+                ) : developers.length === 0 ? (
+                  <div className="text-center py-8">
+                    <span className="text-3xl">👤</span>
+                    <p className="text-sm text-gray-500 mt-2">
+                      No developers yet
+                    </p>
+                    <p className="text-xs text-gray-400">Add one below</p>
+                  </div>
+                ) : (
+                  developers.map((dev) => {
+                    const isSelected = dev.content.isSelected === true;
+                    return (
+                      <div
+                        key={dev.id}
+                        onClick={() => toggleDevEmail(dev)}
+                        className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${
+                          isSelected
+                            ? "border-[#1E3A8A] bg-[#1E3A8A]/5"
+                            : "border-gray-200 hover:border-[#1E3A8A]/40 hover:bg-gray-50"
+                        }`}>
+                        <div className="flex items-center space-x-3">
+                          {/* Checkbox */}
+                          <div
+                            className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                              isSelected
+                                ? "bg-[#1E3A8A] border-[#1E3A8A]"
+                                : "border-gray-300"
+                            }`}>
+                            {isSelected && (
+                              <span className="text-white text-[10px] font-bold">
+                                ✓
+                              </span>
+                            )}
+                          </div>
+                          {/* Email icon */}
+                          <div className="w-8 h-8 bg-gradient-to-br from-[#1E3A8A] to-[#0A1E3C] rounded-lg flex items-center justify-center flex-shrink-0">
+                            <span className="text-white text-xs">📧</span>
+                          </div>
+                          <p className="text-sm text-gray-800 break-all">
+                            {dev.content.email}
+                          </p>
+                        </div>
+                        {/* Delete */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteDeveloper(dev.id, dev.content.email);
+                          }}
+                          className="text-gray-300 hover:text-red-500 transition-colors p-1 rounded ml-2 flex-shrink-0">
+                          🗑️
+                        </button>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Add Developer Form */}
+              {showAddDevForm && (
+                <div className="mx-4 mb-3 p-3 bg-gray-50 rounded-xl border border-gray-200 space-y-2">
+                  <p className="text-xs font-semibold text-[#0A1E3C] mb-2">
+                    Add New Developer
+                  </p>
+                  <div>
+                    <input
+                      placeholder="Email Address *"
+                      value={newDevEmail}
+                      onChange={(e) => {
+                        setNewDevEmail(e.target.value);
+                        setNewDevEmailError("");
+                      }}
+                      className={`w-full px-3 py-2 border rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] ${
+                        newDevEmailError
+                          ? "border-red-300 bg-red-50"
+                          : "border-gray-200"
+                      }`}
+                    />
+                    {newDevEmailError && (
+                      <p className="text-[10px] text-red-500 mt-1">
+                        ⚠️ {newDevEmailError}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex space-x-2 pt-1">
+                    <button
+                      onClick={() => {
+                        setShowAddDevForm(false);
+                        setNewDevEmail("");
+                        setNewDevEmailError("");
+                      }}
+                      className="flex-1 py-2 border border-gray-200 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-100">
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleAddDeveloper}
+                      disabled={addingDev}
+                      className="flex-1 py-2 bg-gradient-to-r from-[#1E3A8A] to-[#0A1E3C] text-white rounded-lg text-xs font-medium disabled:opacity-50 flex items-center justify-center">
+                      {addingDev ? (
+                        <svg
+                          className="animate-spin h-3 w-3"
+                          viewBox="0 0 24 24">
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                            fill="none"
+                          />
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                          />
+                        </svg>
+                      ) : (
+                        <span>Save</span>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Footer */}
+              <div className="p-4 border-t border-gray-100 flex space-x-2">
+                <button
+                  onClick={() => {
+                    setShowAddDevForm((v) => !v);
+                  }}
+                  className="flex-1 py-2.5 border-2 border-[#1E3A8A] text-[#1E3A8A] hover:bg-[#1E3A8A]/5 rounded-lg text-xs font-semibold transition-all flex items-center justify-center space-x-1">
+                  <span>{showAddDevForm ? "✕ Cancel" : "+ Add Developer"}</span>
+                </button>
+                <button
+                  onClick={() => setShowDevEmailPopup(false)}
+                  className="flex-1 py-2.5 bg-gradient-to-r from-[#1E3A8A] to-[#0A1E3C] text-white rounded-lg text-xs font-semibold shadow hover:shadow-md transition-all">
+                  Done ({selectedDevEmails.length} selected)
+                </button>
               </div>
             </div>
           </div>

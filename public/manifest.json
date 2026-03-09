@@ -11,6 +11,11 @@
    "proxyId": "9f01a44a-ef79-4a98-99d7-371b8c8c8d3d",
    "collectionsMapping": [
       {
+         "id": "f167c4bf-778a-48db-a3c6-e35f2590a58e",
+         "name": "DomopaloozaDevelopersMail",
+         "syncEnabled": false
+      },
+      {
          "id": "85cd8cf3-5ac1-44ed-ac21-d35744c9e195",
          "name": "support_requests",
          "syncEnabled": false
