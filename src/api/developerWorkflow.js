@@ -1,8 +1,8 @@
 import axios from "axios";
 
 const API = axios.create({
-  // baseURL: "http://localhost:5000",
-  baseURL: "https://domo-ai-usecase-product-api-462434048008.asia-south1.run.app",
+  baseURL: "http://localhost:5000",
+  // baseURL: "https://domo-ai-usecase-product-api-462434048008.asia-south1.run.app",
 });
 
 export const getTickets = async () => {

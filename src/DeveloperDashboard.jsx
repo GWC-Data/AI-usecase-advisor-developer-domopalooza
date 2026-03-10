@@ -330,19 +330,19 @@ function DeveloperDashboard() {
     return "";
   };
 
-  const validateImageUrl = (url) => {
-    if (!url.trim()) return "";
-    const urlPattern =
-      /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/i;
-    if (!urlPattern.test(url)) return "Please enter a valid image URL";
-    return "";
-  };
+  // const validateImageUrl = (url) => {
+  //   if (!url.trim()) return "";
+  //   const urlPattern =
+  //     /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/i;
+  //   if (!urlPattern.test(url)) return "Please enter a valid image URL";
+  //   return "";
+  // };
 
-  const handleImageUrlChange = (e) => {
-    const val = e.target.value;
-    setSolutionImageUrl(val);
-    setImageUrlError(validateImageUrl(val));
-  };
+  // const handleImageUrlChange = (e) => {
+  //   const val = e.target.value;
+  //   setSolutionImageUrl(val);
+  //   setImageUrlError(validateImageUrl(val));
+  // };
 
   const validateComments = (value) => {
     if (!value.trim()) return "Comments are required";
