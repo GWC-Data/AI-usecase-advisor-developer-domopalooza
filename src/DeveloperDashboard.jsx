@@ -973,7 +973,12 @@ function DeveloperDashboard() {
                       </button>
                       <button
                         onClick={submitSolution}
-                        disabled={loading || !!linkError || !!imageUrlError || commentsError}
+                        disabled={
+                          loading ||
+                          !!linkError ||
+                          !!imageUrlError ||
+                          commentsError
+                        }
                         className="flex-1 bg-gradient-to-r from-[#1E3A8A] to-[#0A1E3C] hover:from-[#0A1E3C] hover:to-[#1E3A8A] text-white font-semibold py-2 sm:py-3 px-3 sm:px-4 rounded-lg text-xs sm:text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg flex items-center justify-center">
                         {loading ? (
                           <>
@@ -1060,20 +1065,39 @@ function DeveloperDashboard() {
                         Customer Information
                       </h4>
                       <div className="space-y-2 text-xs sm:text-sm">
-                        <div className="flex flex-col sm:flex-row sm:items-start">
-                          <span className="w-full sm:w-20 text-gray-500 mb-1 sm:mb-0">
-                            Name:
+                        <div className="flex items-start w-full">
+                          <span className="w-1/2 text-gray-500 whitespace-nowrap">
+                            Name
                           </span>
-                          <span className="text-gray-900 font-medium break-words">
+                          <span className="w-1/2 text-gray-900 font-medium break-words">
                             {selectedDetailsTicket.content.customerName}
                           </span>
                         </div>
-                        <div className="flex flex-col sm:flex-row sm:items-start">
-                          <span className="w-full sm:w-20 text-gray-500 mb-1 sm:mb-0">
-                            Email:
+
+                        <div className="flex items-start w-full">
+                          <span className="w-1/2 text-gray-500 whitespace-nowrap">
+                            Email
                           </span>
-                          <span className="text-gray-900 break-all break-words">
+                          <span className="w-1/2 text-gray-900 break-words">
                             {selectedDetailsTicket.content.email}
+                          </span>
+                        </div>
+
+                        <div className="flex items-start w-full">
+                          <span className="w-1/2 text-gray-500 whitespace-nowrap">
+                            Company Name
+                          </span>
+                          <span className="w-1/2 text-gray-900 break-words">
+                            {selectedDetailsTicket.content.companyName}
+                          </span>
+                        </div>
+
+                        <div className="flex items-start w-full">
+                          <span className="w-1/2 text-gray-500 whitespace-nowrap">
+                            Business Type
+                          </span>
+                          <span className="w-1/2 text-gray-900 break-words">
+                            {selectedDetailsTicket.content.businessType}
                           </span>
                         </div>
                       </div>
