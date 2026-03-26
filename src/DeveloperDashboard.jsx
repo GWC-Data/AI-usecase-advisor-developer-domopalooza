@@ -8,6 +8,7 @@ import React, {
 import gwcLogo from "./assert/gwc-logo.png";
 import domoLogo from "./assert/domopalooza-logo.svg";
 import toast, { Toaster } from "react-hot-toast";
+import { useDropzone } from "react-dropzone";
 import {
   submitDeveloperSolution,
   getTickets,
@@ -15,6 +16,7 @@ import {
   addDeveloper,
   deleteDeveloper,
   toggleDeveloperSelected,
+  uploadFile,
 } from "./api/developerWorkflow";
 
 // Celebration Blast Component - Copied from your working App
@@ -185,7 +187,65 @@ function DeveloperDashboard() {
   const [addingDev, setAddingDev] = useState(false);
   const [selectedDevEmails, setSelectedDevEmails] = useState([]);
   const [solutionImageUrl, setSolutionImageUrl] = useState("");
+  const [solutionImagePublicId, setSolutionImagePublicId] = useState("");
   const [imageUrlError, setImageUrlError] = useState("");
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [solutionFileName, setSolutionFileName] = useState("");
+  const [solutionMimeType, setSolutionMimeType] = useState("");
+
+  // Dropzone setup
+  const onDrop = useCallback(async (acceptedFiles) => {
+    const file = acceptedFiles[0];
+    if (!file) return;
+
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error("File is too large. Max 50MB.");
+      return;
+    }
+
+    setUploadingImage(true);
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const response = await uploadFile(formData);
+
+      if (response?.url) {
+        setSolutionImageUrl(response.url);
+        setSolutionImagePublicId(response.public_id);
+        setSolutionFileName(response.fileName || "");
+        setSolutionMimeType(response.mimeType || "");
+        setImageUrlError("");
+        toast.success("File uploaded successfully!");
+      }
+    } catch (error) {
+      console.error("Upload failed", error);
+      toast.error("Failed to upload file. Please try again.");
+    } finally {
+      setUploadingImage(false);
+    }
+  }, []);
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    multiple: false,
+    accept: {
+    'image/*': [],
+    'application/pdf': [],
+    'application/msword': [],
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': [],
+    'application/vnd.ms-excel': [],
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': [],
+    'text/csv': [],
+    'text/plain': [],
+    'application/zip': [],
+    'application/json': [],
+    'application/xml': [],
+  },
+  onDropRejected: () => {
+    toast.error("Audio and video files are not allowed.");
+  },
+  });
 
   const refreshingRef = useRef(false);
 
@@ -264,20 +324,6 @@ function DeveloperDashboard() {
     return "";
   };
 
-  const validateImageUrl = (url) => {
-    if (!url.trim()) return "";
-    const urlPattern =
-      /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/i;
-    if (!urlPattern.test(url)) return "Please enter a valid image URL";
-    return "";
-  };
-
-  const handleImageUrlChange = (e) => {
-    const val = e.target.value;
-    setSolutionImageUrl(val);
-    setImageUrlError(validateImageUrl(val));
-  };
-
   const validateComments = (value) => {
     if (!value.trim()) return "Comments are required";
     if (value.trim().length < 10)
@@ -306,6 +352,8 @@ function DeveloperDashboard() {
     setShowPopup(true);
     setSolutionImageUrl("");
     setImageUrlError("");
+    setSolutionFileName("");
+    setSolutionMimeType("");
   };
 
   const openDetailsPopup = (ticket) => {
@@ -448,6 +496,7 @@ function DeveloperDashboard() {
         agentResult: selectedTicket.content.agentResult.join("\n"),
         solutionLink: solutionLink,
         solutionImageUrl: solutionImageUrl,
+        solutionImageFileId: solutionImagePublicId,
         comments: comments,
         existingContent: selectedTicket.content,
       });
@@ -498,6 +547,8 @@ function DeveloperDashboard() {
       setWorkflowStatus(null);
       setSolutionImageUrl("");
       setImageUrlError("");
+      setSolutionFileName("");
+      setSolutionMimeType("");
     }
   };
 
@@ -885,44 +936,145 @@ function DeveloperDashboard() {
                   </p>
                 </div>
 
-                {/* Solution Image URL Field */}
+                {/* Solution File Upload using React Dropzone */}
                 <div className="mb-4 sm:mb-5">
                   <label className="block text-xs sm:text-sm font-medium text-[#0A1E3C] mb-1.5 sm:mb-2">
-                    Solution Image URL{" "}
+                    Solution Attachment{" "}
                     <span className="text-gray-400 font-normal text-[10px]">
                       (optional)
                     </span>
                   </label>
-                  <input
-                    type="url"
-                    placeholder="https://example.com/screenshot.png"
-                    value={solutionImageUrl}
-                    onChange={handleImageUrlChange}
-                    disabled={loading}
-                    className={`w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg text-xs sm:text-sm transition-all focus:outline-none focus:ring-2 ${
-                      imageUrlError
-                        ? "border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-200"
-                        : solutionImageUrl && !imageUrlError
-                          ? "border-green-300 bg-green-50 focus:border-green-400 focus:ring-green-200"
-                          : "border-gray-200 focus:border-[#1E3A8A] focus:ring-[#1E3A8A]/20"
-                    } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
-                  />
-                  {imageUrlError && (
-                    <div className="flex items-center mt-1.5 text-xs text-red-600">
-                      <span className="mr-1">⚠️</span>
-                      <span>{imageUrlError}</span>
-                    </div>
-                  )}
-                  {solutionImageUrl && !imageUrlError && (
-                    <div className="flex items-center mt-1.5 text-xs text-green-600">
-                      <span className="mr-1">✓</span>
-                      <span>Valid image URL</span>
-                    </div>
-                  )}
-                  <p className="text-xs text-gray-400 mt-1.5">
-                    Paste a public image URL to include a screenshot in the
-                    resolution email.
-                  </p>
+
+                  <div
+                    className="relative border-2 border-dashed rounded-xl transition-all duration-300 min-h-[160px] sm:min-h-[200px]"
+                    style={{
+                      borderColor: solutionImageUrl
+                        ? "#10B981"
+                        : isDragActive
+                          ? "#1E3A8A"
+                          : "#D1D5DB",
+                      backgroundColor: solutionImageUrl
+                        ? "#F0FDF4"
+                        : isDragActive
+                          ? "rgba(30,58,138,0.05)"
+                          : "white",
+                    }}>
+                    {!solutionImageUrl ? (
+                      /* DROPZONE STATE */
+                      <div
+                        {...getRootProps()}
+                        className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer p-6">
+                        <input {...getInputProps()} disabled={uploadingImage} />
+
+                        {uploadingImage ? (
+                          <div className="flex flex-col items-center justify-center space-y-3">
+                            <svg
+                              className="animate-spin h-8 w-8 text-[#1E3A8A]"
+                              viewBox="0 0 24 24">
+                              <circle
+                                className="opacity-25"
+                                cx="12"
+                                cy="12"
+                                r="10"
+                                stroke="currentColor"
+                                strokeWidth="4"
+                                fill="none"
+                              />
+                              <path
+                                className="opacity-75"
+                                fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                              />
+                            </svg>
+                            <p className="text-sm font-semibold text-[#1E3A8A]">
+                              Uploading to Domo...
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center space-y-2">
+                            <div className="w-12 h-12 bg-[#1E3A8A]/5 rounded-full flex items-center justify-center mb-1">
+                              <span className="text-2xl">📎</span>
+                            </div>
+                            <p className="text-sm font-semibold text-[#1E3A8A]">
+                              {isDragActive
+                                ? "Drop the file here"
+                                : "Click or drag file here"}
+                            </p>
+                            <p className="text-xs text-gray-400">
+                              Any file type accepted (Max 50MB)
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      /* PREVIEW STATE */
+                      <div className="absolute inset-0 flex flex-col items-center justify-center p-6 space-y-3">
+                        {/* Remove button — top right corner */}
+                        <button
+                          onClick={() => {
+                            setSolutionImageUrl("");
+                            setSolutionImagePublicId("");
+                            setSolutionFileName("");
+                            setSolutionMimeType("");
+                            toast.success("File removed");
+                          }}
+                          className="absolute top-3 right-3 w-7 h-7 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-md transition-colors z-10"
+                          title="Remove file">
+                          <svg
+                            className="w-3.5 h-3.5"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24">
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2.5}
+                              d="M6 18L18 6M6 6l12 12"
+                            />
+                          </svg>
+                        </button>
+
+                        {/* File icon based on type */}
+                        <span className="text-5xl">
+                          {solutionMimeType.startsWith("image/")
+                            ? "🖼️"
+                            : solutionMimeType === "application/pdf"
+                              ? "📕"
+                              : solutionMimeType.includes("sheet") ||
+                                  solutionMimeType.includes("excel") ||
+                                  solutionMimeType === "text/csv"
+                                ? "📊"
+                                : solutionMimeType.includes("word")
+                                  ? "📝"
+                                  : solutionMimeType.startsWith("video/")
+                                    ? "🎬"
+                                    : solutionMimeType.startsWith("audio/")
+                                      ? "🎵"
+                                      : "📄"}
+                        </span>
+
+                        {/* File name */}
+                        <p className="text-sm font-semibold text-gray-800 text-center break-all px-4">
+                          {solutionFileName}
+                        </p>
+
+                        {/* Success badge */}
+                        <span className="inline-flex items-center space-x-1 bg-green-100 text-green-700 text-xs font-medium px-3 py-1 rounded-full border border-green-200">
+                          <svg
+                            className="w-3 h-3"
+                            fill="currentColor"
+                            viewBox="0 0 20 20">
+                            <path
+                              fillRule="evenodd"
+                              d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                          <span>Uploaded to Domo successfully</span>
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Comments Field */}
@@ -1138,6 +1290,44 @@ function DeveloperDashboard() {
                         </div>
                       </div>
                     </div>
+
+                    {/* Solution Details (if closed) */}
+                    {selectedDetailsTicket.content.status === "CLOSED" && (
+                      <div className="border-t border-gray-200 pt-3 sm:pt-4">
+                        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                          Solution Details
+                        </h4>
+                        <div className="space-y-3">
+                          {selectedDetailsTicket.content.solutionLink && (
+                            <div>
+                              <span className="text-gray-500 block text-xs">
+                                Solution Link:
+                              </span>
+                              <a
+                                href={
+                                  selectedDetailsTicket.content.solutionLink
+                                }
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[#1E3A8A] hover:underline text-xs break-all">
+                                {selectedDetailsTicket.content.solutionLink}
+                              </a>
+                            </div>
+                          )}
+
+                          {selectedDetailsTicket.content.comments && (
+                            <div>
+                              <span className="text-gray-500 block text-xs">
+                                Developer Comments:
+                              </span>
+                              <p className="text-xs text-gray-700 mt-1 italic">
+                                "{selectedDetailsTicket.content.comments}"
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
 
                     {/* AI Agent Result Section - Enhanced Version */}
                     {selectedDetailsTicket.content.agentResult && (
